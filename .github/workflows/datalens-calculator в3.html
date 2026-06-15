@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор DataLens</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1f2435;
+    --border: #2a3048;
+    --accent: #5b6cff;
+    --accent2: #00c9a7;
+    --warn: #e07b39;
+    --danger: #c0392b;
+    --text: #e8ecf4;
+    --muted: #8892aa;
+    --green: #2ecc8f;
+    --purple: #7b5ea7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+  }
+  .page { max-width: 900px; margin: 0 auto; }
+
+  .header {
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-eyebrow {
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .header h1 { font-size: 26px; font-weight: 700; color: #fff; }
+  .header p { margin-top: 7px; font-size: 13px; color: var(--muted); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    .result-panel { position: static !important; }
+  }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 22px; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 9px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 10px; color: var(--accent); font-weight: 700; flex-shrink: 0;
+  }
+
+  /* ── Option tiles ── */
+  .options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt {
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 15px;
+    background: var(--surface);
+    transition: border-color .15s, background .15s;
+    user-select: none;
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+  .opt:hover { border-color: #4a5580; }
+  .opt .opt-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .opt .opt-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .opt.selected {
+    border-color: var(--accent);
+    background: rgba(91, 108, 255, .13);
+  }
+  .opt.selected .opt-title { color: #fff; }
+
+  /* ── Number inputs ── */
+  .num-inputs { display: flex; gap: 12px; flex-wrap: wrap; }
+  .num-field {
+    flex: 1 1 140px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .num-field label { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.3; }
+  .num-field input {
+    width: 64px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    padding: 5px 8px;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  .num-field input::-webkit-inner-spin-button,
+  .num-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .num-field input:focus { border-color: var(--accent); }
+
+  /* ── Custom number input row ── */
+  .custom-input-row {
+    margin-top: 8px;
+  }
+  .custom-input-row input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1.5px solid var(--accent);
+    border-radius: 9px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 14px;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  .custom-input-row input::-webkit-inner-spin-button,
+  .custom-input-row input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .custom-input-row input:focus { border-color: var(--accent2); }
+  .custom-input-row input::placeholder { color: var(--muted); font-weight: 400; }
+
+  /* ── Infra block ── */
+  .infra-notice {
+    display: flex; align-items: flex-start; gap: 10px;
+    border-radius: 10px; padding: 12px 14px;
+    font-size: 13px; line-height: 1.5;
+    margin-bottom: 12px;
+  }
+  .infra-notice--warn {
+    background: rgba(224,123,57,.1);
+    border: 1px solid rgba(224,123,57,.3);
+    color: #e8a87c;
+  }
+  .infra-notice-icon { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
+  .infra-sizing-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .infra-sizing-title {
+    font-size: 11px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+  .infra-sizing-placeholder {
+    font-size: 12px; color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: 7px; padding: 12px 14px;
+    text-align: center;
+  }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--border); margin: 28px 0; }
+
+  /* ── Result panel ── */
+  .result-panel {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 26px;
+    position: sticky;
+    top: 16px;
+  }
+  .result-badge {
+    display: inline-block;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    background: rgba(0,201,167,.12); color: var(--accent2);
+    border: 1px solid rgba(0,201,167,.25); border-radius: 20px;
+    padding: 3px 10px; margin-bottom: 12px;
+  }
+  .result-price { font-size: 28px; font-weight: 800; color: #fff; line-height: 1.15; }
+  .result-price .rub { color: var(--accent2); }
+  .result-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .result-divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .result-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 6px; margin-bottom: 7px;
+  }
+  .rr-name { font-size: 12px; color: var(--muted); flex: 1; }
+  .rr-val  { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .result-row.total .rr-name { font-size: 12px; font-weight: 700; color: var(--text); }
+  .result-row.total .rr-val  { color: var(--accent2); font-size: 12px; }
+  .result-row.lic-row .rr-name { color: var(--text); }
+
+  /* ── Licence block in result ── */
+  .lic-block {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .lic-block-title {
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+
+  /* ── CTA button ── */
+  .cta-btn {
+    display: block; width: 100%; margin-top: 16px;
+    background: var(--accent);
+    color: #fff; font-size: 13px; font-weight: 700;
+    border: none; border-radius: 10px; padding: 12px 16px;
+    cursor: pointer; text-align: center;
+    transition: background .15s, opacity .15s;
+  }
+  .cta-btn:hover { background: #4a5de8; }
+
+  /* ── Notice ── */
+  .result-notice {
+    margin-top: 14px;
+    font-size: 10px; color: var(--muted); line-height: 1.65;
+    border-top: 1px solid var(--border); padding-top: 12px;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+    z-index: 100; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 36px;
+    max-width: 560px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .modal .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .modal-field { margin-bottom: 16px; }
+  .modal-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; letter-spacing: .05em; text-transform: uppercase; }
+  .modal-field input, .modal-field textarea {
+    width: 100%; background: var(--surface2);
+    border: 1.5px solid var(--border); border-radius: 9px;
+    color: var(--text); font-size: 14px; padding: 10px 14px; outline: none;
+    font-family: inherit; resize: vertical;
+  }
+  .modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent); }
+  .modal-field textarea { min-height: 80px; }
+  .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .btn-primary {
+    flex: 1; background: var(--accent); color: #fff;
+    border: none; border-radius: 9px; padding: 12px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .btn-primary:hover { background: #4a5de8; }
+  .btn-secondary {
+    background: transparent; color: var(--muted);
+    border: 1.5px solid var(--border); border-radius: 9px; padding: 12px 20px;
+    font-size: 14px; cursor: pointer;
+  }
+  .btn-secondary:hover { border-color: #4a5580; color: var(--text); }
+  .modal-success { text-align: center; padding: 24px 0; }
+  .modal-success .check { font-size: 40px; margin-bottom: 12px; }
+  .modal-success h3 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .modal-success p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .modal-summary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .modal-summary .ms-price { font-size: 20px; font-weight: 800; color: var(--accent2); margin-bottom: 4px; }
+  .modal-summary .ms-sub { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="header-eyebrow">Navicon · Yandex DataLens</div>
+    <h1>Калькулятор стоимости внедрения</h1>
+    <p>Индикативная оценка на основе параметров проекта. Диапазон MIN–MAX, без НДС.</p>
+  </div>
+
+  <div class="layout">
+    <!-- ════ ЛЕВАЯ КОЛОНКА ════ -->
+    <div>
+
+      <!-- 1. DWH -->
+      <div class="section">
+        <div class="section-label"><span class="num">1</span>Наличие DWH</div>
+        <div class="options" id="q1">
+          <div class="opt c-green selected" data-key="dwh" data-val="ready" onclick="pick(this,'q1')">
+            <div class="opt-title">DWH + витрины готовы</div>
+          </div>
+          <div class="opt c-orange" data-key="dwh" data-val="no_vitrine" onclick="pick(this,'q1')">
+            <div class="opt-title">Есть DWH, нет витрин</div>
+          </div>
+          <div class="opt c-red" data-key="dwh" data-val="none" onclick="pick(this,'q1')">
+            <div class="opt-title">DWH нет (с нуля)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Размещение -->
+      <div class="section">
+        <div class="section-label"><span class="num">2</span>Размещение</div>
+        <div class="options" id="q2">
+          <div class="opt c-green selected" data-key="infra" data-val="cloud" onclick="pick(this,'q2')">
+            <div class="opt-title">Yandex Cloud</div>
+          </div>
+          <div class="opt c-orange" data-key="infra" data-val="onprem" onclick="pick(this,'q2')">
+            <div class="opt-title">On-premise</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Количество отчётов -->
+      <div class="section">
+        <div class="section-label"><span class="num">3</span>Количество отчётов (N)</div>
+        <div class="options" id="q3">
+          <div class="opt c-purple selected" data-key="n" data-val="3" onclick="pick(this,'q3')">
+            <div class="opt-title">До 5</div>
+          </div>
+          <div class="opt c-purple" data-key="n" data-val="10" onclick="pick(this,'q3')">
+            <div class="opt-title">5–15</div>
+          </div>
+          <div class="opt c-purple" data-key="n" data-val="22" onclick="pick(this,'q3')">
+            <div class="opt-title">15–30</div>
+          </div>
+          <div class="opt c-purple" data-key="n" data-val="40" onclick="pick(this,'q3')">
+            <div class="opt-title">30+</div>
+          </div>
+          <div class="opt c-purple" data-key="n" data-val="custom" onclick="pickCustom(this,'q3','n-custom-row')">
+            <div class="opt-title">Точное количество</div>
+          </div>
+        </div>
+        <div id="n-custom-row" class="custom-input-row" style="display:none">
+          <input type="number" id="n-custom" min="1" max="999" placeholder="Введите количество отчётов"
+                 oninput="applyCustom('n','n-custom')">
+        </div>
+      </div>
+
+      <!-- 4. Расчётные показатели -->
+      <div class="section">
+        <div class="section-label"><span class="num">4</span>Расчётные показатели (M)</div>
+        <div class="options" id="q4">
+          <div class="opt c-purple selected" data-key="m" data-val="25" onclick="pick(this,'q4')">
+            <div class="opt-title">До 50</div>
+          </div>
+          <div class="opt c-purple" data-key="m" data-val="100" onclick="pick(this,'q4')">
+            <div class="opt-title">50–150</div>
+          </div>
+          <div class="opt c-purple" data-key="m" data-val="225" onclick="pick(this,'q4')">
+            <div class="opt-title">150–300</div>
+          </div>
+          <div class="opt c-purple" data-key="m" data-val="400" onclick="pick(this,'q4')">
+            <div class="opt-title">300+</div>
+          </div>
+          <div class="opt c-purple" data-key="m" data-val="custom" onclick="pickCustom(this,'q4','m-custom-row')">
+            <div class="opt-title">Точное количество</div>
+          </div>
+        </div>
+        <div id="m-custom-row" class="custom-input-row" style="display:none">
+          <input type="number" id="m-custom" min="1" max="9999" placeholder="Введите количество показателей"
+                 oninput="applyCustom('m','m-custom')">
+        </div>
+      </div>
+
+      <!-- 5. Сложность отчётов -->
+      <div class="section">
+        <div class="section-label"><span class="num">5</span>Сложность отчётов</div>
+        <div class="options" id="q5">
+          <div class="opt c-blue selected" data-key="complexity" data-val="simple" onclick="pick(this,'q5')">
+            <div class="opt-title">Простые</div>
+          </div>
+          <div class="opt c-blue" data-key="complexity" data-val="medium" onclick="pick(this,'q5')">
+            <div class="opt-title">Средние</div>
+          </div>
+          <div class="opt c-blue" data-key="complexity" data-val="hard" onclick="pick(this,'q5')">
+            <div class="opt-title">Сложные</div>
+          </div>
+          <div class="opt c-blue" data-key="complexity" data-val="mixed" onclick="pick(this,'q5')">
+            <div class="opt-title">Смешанные</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Ролевая модель -->
+      <div class="section">
+        <div class="section-label"><span class="num">6</span>Ролевая модель (RLS)</div>
+        <div class="options" id="q6">
+          <div class="opt c-green selected" data-key="rls" data-val="none" onclick="pick(this,'q6')">
+            <div class="opt-title">Без ограничений</div>
+          </div>
+          <div class="opt c-orange" data-key="rls" data-val="simple" onclick="pick(this,'q6')">
+            <div class="opt-title">Простые роли</div>
+          </div>
+          <div class="opt c-red" data-key="rls" data-val="rls" onclick="pick(this,'q6')">
+            <div class="opt-title">Row-Level Security</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Инструкции -->
+      <div class="section">
+        <div class="section-label"><span class="num">7</span>Инструкции пользователей</div>
+        <div class="options" id="q7">
+          <div class="opt c-green selected" data-key="docs" data-val="no" onclick="pick(this,'q7')">
+            <div class="opt-title">Не нужны</div>
+          </div>
+          <div class="opt c-orange" data-key="docs" data-val="yes" onclick="pick(this,'q7')">
+            <div class="opt-title">Нужны</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Лицензии — пользователи -->
+      <div class="section">
+        <div class="section-label">Лицензии DataLens (в год)</div>
+        <div class="num-inputs">
+          <div class="num-field">
+            <label>Редакторы<br>/ Администраторы</label>
+            <input type="number" id="u-editors" value="0" min="0" max="999" oninput="calculate()">
+          </div>
+          <div class="num-field">
+            <label>Бизнес-<br>пользователи</label>
+            <input type="number" id="u-viewers" value="0" min="0" max="9999" oninput="calculate()">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;padding-left:2px">
+          Ставка лицензий определяется автоматически по выбранному размещению (Облако / On-premise)
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Инфраструктура -->
+      <div class="section">
+        <div class="section-label">Инфраструктура</div>
+        <div id="infra-onprem-notice" style="display:none" class="infra-notice infra-notice--warn">
+          <span class="infra-notice-icon">⚠</span>
+          Заказчику необходимо самостоятельно подготовить и предоставить вычислительные мощности.
+        </div>
+        <div class="infra-sizing-card">
+          <div class="infra-sizing-title">Индикативный рекомендуемый сайзинг</div>
+          <div class="infra-sizing-placeholder">
+            Формулы расчёта будут добавлены позднее
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- ════ ПРАВАЯ КОЛОНКА ════ -->
+    <div class="result-panel">
+      <div class="result-badge">Индикативная оценка</div>
+      <div class="result-price" id="rp-impl-price">—</div>
+      <div class="result-sub" id="rp-hours">—</div>
+      <div class="result-sub" id="rp-weeks" style="margin-top:3px">—</div>
+
+      <div class="result-divider"></div>
+      <div id="rp-breakdown"></div>
+
+      <div class="lic-block" id="rp-lic-block" style="display:none">
+        <div class="lic-block-title">Лицензии / год</div>
+        <div id="rp-lic-rows"></div>
+        <div class="result-row total" style="margin-top:8px">
+          <span class="rr-name">Итого лицензии</span>
+          <span class="rr-val" id="rp-lic-total">—</span>
+        </div>
+      </div>
+
+      <div class="result-divider"></div>
+      <div class="result-row total" style="margin-bottom:0">
+        <span class="rr-name" style="font-size:13px;font-weight:800;color:#fff">ИТОГО</span>
+        <span class="rr-val" id="rp-grand-total" style="font-size:13px;color:var(--accent2)">—</span>
+      </div>
+      <div class="result-sub" id="rp-grand-sub" style="margin-top:4px"></div>
+
+      <button class="cta-btn" onclick="openModal()">Получить детальное КП</button>
+
+      <div class="result-notice">
+        Оценка индикативная, не является офертой. Уточняется после анализа требований.
+      </div>
+    </div>
+
+  </div><!-- /layout -->
+</div><!-- /page -->
+
+<!-- ════ МОДАЛЬНОЕ ОКНО ════ -->
+<div class="modal-overlay" id="modal" onclick="closeModalOverlay(event)">
+  <div class="modal">
+    <div id="modal-form-view">
+      <h2>Получить детальное КП</h2>
+      <p class="modal-sub">Заполните контактные данные — мы подготовим детальное коммерческое предложение на основе ваших параметров.</p>
+
+      <div class="modal-summary" id="modal-summary"></div>
+
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Имя</label>
+          <input type="text" id="cf-name" placeholder="Иван Иванов">
+        </div>
+        <div class="modal-field">
+          <label>Должность</label>
+          <input type="text" id="cf-title" placeholder="IT-директор">
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>Компания</label>
+          <input type="text" id="cf-company" placeholder="ООО «Пример»">
+        </div>
+        <div class="modal-field">
+          <label>Телефон</label>
+          <input type="tel" id="cf-phone" placeholder="+7 (___) ___-__-__">
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>E-mail</label>
+        <input type="email" id="cf-email" placeholder="ivan@company.ru">
+      </div>
+      <div class="modal-field">
+        <label>Комментарий (необязательно)</label>
+        <textarea id="cf-comment" placeholder="Дополнительные требования, сроки, вопросы..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+        <button class="btn-primary" onclick="submitForm()">Отправить запрос</button>
+      </div>
+    </div>
+
+    <div id="modal-success-view" class="modal-success" style="display:none">
+      <div class="check">✓</div>
+      <h3>Запрос отправлен</h3>
+      <p>Мы получили вашу заявку и свяжемся с вами в течение одного рабочего дня для уточнения деталей и подготовки КП.</p>
+      <button class="btn-primary" style="max-width:200px;margin:24px auto 0;display:block" onclick="closeModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+const state = {
+  dwh: 'ready',
+  infra: 'cloud',
+  n: 3,
+  m: 25,
+  complexity: 'simple',
+  rls: 'none',
+  docs: 'no'
+};
+
+// Лицензионные ставки из файла (в год, за 1 пользователя)
+const LIC = {
+  editor: { cloud: 11880, onprem: 48000 },   // 990*12 = 11880
+  viewer: { cloud: 11880, onprem: 12000 }
+};
+
+function pick(el, groupId) {
+  document.querySelectorAll('#' + groupId + ' .opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const key = el.dataset.key;
+  state[key] = isNaN(el.dataset.val) ? el.dataset.val : Number(el.dataset.val);
+  // hide custom row if switching away from custom
+  if (groupId === 'q3') document.getElementById('n-custom-row').style.display = 'none';
+  if (groupId === 'q4') document.getElementById('m-custom-row').style.display = 'none';
+  // update infra notice
+  if (key === 'infra') updateInfraNotice();
+  calculate();
+}
+
+function pickCustom(el, groupId, rowId) {
+  document.querySelectorAll('#' + groupId + ' .opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const row = document.getElementById(rowId);
+  row.style.display = '';
+  // focus the input
+  row.querySelector('input').focus();
+  // don't calculate yet — wait for user input
+}
+
+function applyCustom(stateKey, inputId) {
+  const val = parseInt(document.getElementById(inputId).value);
+  if (val > 0) {
+    state[stateKey] = val;
+    calculate();
+  }
+}
+
+function updateInfraNotice() {
+  const notice = document.getElementById('infra-onprem-notice');
+  notice.style.display = state.infra === 'onprem' ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════
+// CALCULATION — строго по дереву из файла
+// ══════════════════════════════════════════════
+function calculate() {
+  const N = state.n;
+  const M = state.m;
+  const isCloud = state.infra === 'cloud';
+
+  // 1. Анализ и проектирование (всегда)
+  //    Интервью:          N×2   / N×3,5
+  //    Анализ показателей: M×0,2 / M×0,3
+  //    Анализ требований: +15   / +25
+  const analysisMin = N * 2 + M * 0.2 + 15;
+  const analysisMax = N * 3.5 + M * 0.3 + 25;
+
+  // 2. DWH / витрины — ветка по "Наличие DWH"
+  let dwhMin = 0, dwhMax = 0;
+  if (state.dwh === 'no_vitrine') {
+    dwhMin = 100 + N * 4;
+    dwhMax = 180 + N * 7;
+  } else if (state.dwh === 'none') {
+    dwhMin = 250 + N * 8;
+    dwhMax = 400 + N * 14;
+  }
+  // 'ready' → 0 / 0
+
+  // 3. Инфраструктура — ветка по "Размещение"
+  //    Yandex Cloud → 0   (из файла: "Разворачивание инфры: 0 / 0")
+  //    On-premise   → 40 / 80
+  const infraMin = isCloud ? 0 : 40;
+  const infraMax = isCloud ? 0 : 80;
+
+  // 4. Разработка мер (всегда)
+  //    M×0,2 / M×0,3
+  const measuresMin = M * 0.2;
+  const measuresMax = M * 0.3;
+
+  // 5. Разработка отчётов — ветка по "Сложность"
+  let reportsMin = 0, reportsMax = 0;
+  if      (state.complexity === 'simple') { reportsMin = N * 6;  reportsMax = N * 10; }
+  else if (state.complexity === 'medium') { reportsMin = N * 10; reportsMax = N * 16; }
+  else if (state.complexity === 'hard')   { reportsMin = N * 16; reportsMax = N * 28; }
+  else /* mixed */                        { reportsMin = N * 10; reportsMax = N * 18; }
+
+  // 6. Ролевая модель — ветка по "RLS"
+  let rlsMin = 0, rlsMax = 0;
+  if      (state.rls === 'simple') { rlsMin = 15; rlsMax = 25; }
+  else if (state.rls === 'rls')    { rlsMin = 40; rlsMax = 70; }
+
+  // 7. Инструкции — ветка по "Инструкции"
+  let docsMin = 0, docsMax = 0;
+  if (state.docs === 'yes') { docsMin = N * 4; docsMax = N * 5; }
+
+  // 8. Тестирование (от базы разработки отчётов, без RLS и инструкций)
+  //    Простые:                ×0,25 / ×0,25
+  //    Средние / Смешанные:    ×0,35 / ×0,35
+  //    Сложные:                ×0,45 / ×0,45
+  let testCoef = 0.25;
+  if (state.complexity === 'medium' || state.complexity === 'mixed') testCoef = 0.35;
+  else if (state.complexity === 'hard') testCoef = 0.45;
+  const testMin = reportsMin * testCoef;
+  const testMax = reportsMax * testCoef;
+
+  // 9. Приёмочные испытания (всегда)
+  //    N×2,5 / N×4
+  const uatMin = N * 2.5;
+  const uatMax = N * 4;
+
+  // ── Сумма часов блоков (без РП) ──
+  const baseMin = analysisMin + dwhMin + infraMin + measuresMin
+                + reportsMin + rlsMin + docsMin + testMin + uatMin;
+  const baseMax = analysisMax + dwhMax + infraMax + measuresMax
+                + reportsMax + rlsMax + docsMax + testMax + uatMax;
+
+  // + 30% РП и Архнадзор
+  const totalHoursMin = baseMin * 1.3;
+  const totalHoursMax = baseMax * 1.3;
+
+  // Стоимость внедрения: Σч × 5 160 ₽ (70% × 4800 + 30% × 6000)
+  const RATE = 5160;
+  const implMin = Math.round(totalHoursMin * RATE);
+  const implMax = Math.round(totalHoursMax * RATE);
+
+  // ── Лицензии — ставки из ветки "Размещение" ──
+  const licKey = isCloud ? 'cloud' : 'onprem';
+  const editors = parseInt(document.getElementById('u-editors').value) || 0;
+  const viewers = parseInt(document.getElementById('u-viewers').value) || 0;
+  const licEditors = editors * LIC.editor[licKey];
+  const licViewers = viewers * LIC.viewer[licKey];
+  const licTotal   = licEditors + licViewers;
+
+  const PM = 1.3;
+  const rows = [
+    { name: 'Анализ и проектирование', min: analysisMin * PM, max: analysisMax * PM },
+    ...(dwhMin + dwhMax > 0 ? [{ name: 'DWH / витрины', min: dwhMin * PM, max: dwhMax * PM }] : []),
+    ...(infraMin + infraMax > 0 ? [{ name: 'Инфраструктура (on-premise)', min: infraMin * PM, max: infraMax * PM }] : []),
+    { name: 'Разработка мер', min: measuresMin * PM, max: measuresMax * PM },
+    { name: 'Разработка отчётов', min: reportsMin * PM, max: reportsMax * PM },
+    ...(rlsMin + rlsMax > 0 ? [{ name: 'Ролевая модель', min: rlsMin * PM, max: rlsMax * PM }] : []),
+    ...(docsMin + docsMax > 0 ? [{ name: 'Инструкции', min: docsMin * PM, max: docsMax * PM }] : []),
+    { name: 'Тестирование', min: testMin * PM, max: testMax * PM },
+    { name: 'Приёмочные испытания', min: uatMin * PM, max: uatMax * PM },
+  ];
+
+  renderResult({ implMin, implMax, totalHoursMin, totalHoursMax, rows,
+                 editors, viewers, licEditors, licViewers, licTotal,
+                 licKey, isCloud });
+}
+
+// ══════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════
+function fmt(n)  { return Math.round(n).toLocaleString('ru-RU'); }
+function fmtH(n) { return Math.round(n) + '\u00a0ч'; }
+function fmtR(n) { return fmt(n) + '\u00a0₽'; }
+
+function renderResult({ implMin, implMax, totalHoursMin, totalHoursMax, rows,
+                        editors, viewers, licEditors, licViewers, licTotal,
+                        licKey, isCloud }) {
+
+  // Внедрение
+  document.getElementById('rp-impl-price').innerHTML =
+    `${fmt(implMin)}\u2013${fmt(implMax)} <span class="rub">₽</span>`;
+  document.getElementById('rp-hours').textContent =
+    `Внедрение · ${fmt(totalHoursMin)}\u2013${fmt(totalHoursMax)}\u00a0ч (с РП и архнадзором)`;
+
+  // Срок внедрения: MIN = totalHoursMin / 50, MAX = totalHoursMax / 22, округление вверх
+  const weeksMin = Math.ceil(totalHoursMin / 50);
+  const weeksMax = Math.ceil(totalHoursMax / 22);
+  document.getElementById('rp-weeks').textContent =
+    `Ориентировочный срок · ${weeksMin}\u2013${weeksMax}\u00a0нед.`;
+
+  // Разбивка часов
+  let bd = '';
+  for (const r of rows) {
+    bd += `<div class="result-row">
+      <span class="rr-name">${r.name}</span>
+      <span class="rr-val">${fmtH(r.min)}\u2013${fmtH(r.max)}</span>
+    </div>`;
+  }
+  bd += `<div class="result-row total" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+    <span class="rr-name">Итого часов <span style="font-size:10px;font-weight:400;color:var(--muted)">включает руководство проектом</span></span>
+    <span class="rr-val">${fmt(totalHoursMin)}\u2013${fmt(totalHoursMax)}\u00a0ч</span>
+  </div>`;
+  document.getElementById('rp-breakdown').innerHTML = bd;
+
+  // Лицензии
+  const hasLic = editors > 0 || viewers > 0;
+  const licBlock = document.getElementById('rp-lic-block');
+  licBlock.style.display = hasLic ? '' : 'none';
+  if (hasLic) {
+    const label = isCloud ? 'Облако' : 'On-premise';
+    let lr = '';
+    if (editors > 0) {
+      lr += `<div class="result-row lic-row">
+        <span class="rr-name">Редакторы (${editors}×${fmt(LIC.editor[licKey])}\u00a0₽)</span>
+        <span class="rr-val">${fmtR(licEditors)}</span>
+      </div>`;
+    }
+    if (viewers > 0) {
+      lr += `<div class="result-row lic-row">
+        <span class="rr-name">Бизнес-польз. (${viewers}×${fmt(LIC.viewer[licKey])}\u00a0₽)</span>
+        <span class="rr-val">${fmtR(licViewers)}</span>
+      </div>`;
+    }
+    document.getElementById('rp-lic-rows').innerHTML = lr;
+    document.getElementById('rp-lic-total').textContent = fmtR(licTotal);
+  }
+
+  // ИТОГО
+  const grandMin = implMin + (hasLic ? licTotal : 0);
+  const grandMax = implMax + (hasLic ? licTotal : 0);
+  document.getElementById('rp-grand-total').innerHTML =
+    `${fmt(grandMin)}\u2013${fmt(grandMax)}\u00a0<span style="color:var(--accent2)">₽</span>`;
+  document.getElementById('rp-grand-sub').textContent =
+    hasLic ? 'Внедрение + лицензии за 1 год, без НДС' : 'Внедрение, без НДС';
+}
+
+// ══════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════
+function openModal() {
+  const price = document.getElementById('rp-impl-price').textContent;
+  const hours = document.getElementById('rp-hours').textContent;
+  document.getElementById('modal-summary').innerHTML =
+    `<div class="ms-price">${price}</div><div class="ms-sub">${hours}</div>`;
+  document.getElementById('modal-form-view').style.display = '';
+  document.getElementById('modal-success-view').style.display = 'none';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+function closeModalOverlay(e) {
+  if (e.target === document.getElementById('modal')) closeModal();
+}
+function submitForm() {
+  const name = document.getElementById('cf-name').value.trim();
+  const email = document.getElementById('cf-email').value.trim();
+  if (!name || !email) {
+    document.getElementById('cf-name').style.borderColor = name ? '' : 'var(--danger)';
+    document.getElementById('cf-email').style.borderColor = email ? '' : 'var(--danger)';
+    return;
+  }
+  document.getElementById('modal-form-view').style.display = 'none';
+  document.getElementById('modal-success-view').style.display = '';
+}
+
+// Initial
+updateInfraNotice();
+calculate();
+</script>
+</body>
+</html>
