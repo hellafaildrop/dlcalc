@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор DataLens + DWH</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #181c27; --surface2: #1f2435; --border: #2a3048;
+    --accent: #5b6cff; --accent2: #00c9a7; --warn: #e07b39; --danger: #c0392b;
+    --text: #e8ecf4; --muted: #8892aa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 32px 16px 80px;
+  }
+  .page { max-width: 920px; margin: 0 auto; }
+  .header { margin-bottom: 32px; padding-bottom: 22px; border-bottom: 1px solid var(--border); }
+  .header-eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .header h1 { font-size: 25px; font-weight: 700; color: #fff; }
+  .header p { margin-top: 7px; font-size: 13px; color: var(--muted); }
+
+  .layout { display: grid; grid-template-columns: 1fr 330px; gap: 24px; align-items: start; }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } .result-panel { position: static !important; } }
+
+  .section { margin-bottom: 22px; }
+  .section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 9px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%; background: var(--surface2);
+    border: 1px solid var(--border); font-size: 10px; color: var(--accent); font-weight: 700; flex-shrink: 0;
+  }
+  .auto-tag {
+    font-size: 9px; font-weight: 600; background: rgba(0,201,167,.15); color: var(--accent2);
+    border-radius: 5px; padding: 2px 7px; margin-left: 6px; text-transform: none; letter-spacing: 0;
+  }
+
+  .options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt {
+    cursor: pointer; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 15px;
+    background: var(--surface); transition: border-color .15s, background .15s; user-select: none;
+    flex: 1 1 auto; min-width: 120px;
+  }
+  .opt:hover { border-color: #4a5580; }
+  .opt .opt-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .opt.selected { border-color: var(--accent); background: rgba(91,108,255,.13); }
+  .opt.selected .opt-title { color: #fff; }
+
+  .num-inputs { display: flex; gap: 12px; flex-wrap: wrap; }
+  .num-field {
+    flex: 1 1 140px; background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .num-field label { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.3; }
+  .num-field input {
+    width: 70px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); font-size: 15px; font-weight: 700; text-align: center; padding: 5px 8px;
+    outline: none; -moz-appearance: textfield;
+  }
+  .num-field input::-webkit-inner-spin-button, .num-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .num-field input:focus { border-color: var(--accent); }
+
+  .custom-input-row { margin-top: 8px; }
+  .custom-input-row input {
+    width: 100%; background: var(--surface2); border: 1.5px solid var(--accent); border-radius: 9px;
+    color: var(--text); font-size: 14px; font-weight: 600; padding: 9px 14px; outline: none; -moz-appearance: textfield;
+  }
+  .custom-input-row input::-webkit-inner-spin-button, .custom-input-row input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .custom-input-row input::placeholder { color: var(--muted); font-weight: 400; }
+
+  .divider { height: 1px; background: var(--border); margin: 28px 0; }
+
+  /* Группирующие карточки слева */
+  .card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+  }
+  .card > .card-head { margin-bottom: 18px; }
+  .card > .card-head h2 { font-size: 17px; font-weight: 700; color: #fff; }
+  .card > .card-head p { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 5px; }
+  .card .section:last-child { margin-bottom: 0; }
+  .card-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 7px; background: rgba(91,108,255,.15);
+    color: var(--accent); font-size: 12px; font-weight: 800; margin-right: 9px; vertical-align: middle;
+  }
+
+  .block-heading { margin-bottom: 16px; }
+  .block-heading h2 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 5px; }
+  .block-heading p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .block-toggle {
+    display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 15px;
+    font-size: 13px; font-weight: 600; color: var(--text); transition: border-color .15s; margin-top: 12px;
+  }
+  .block-toggle:hover { border-color: #4a5580; }
+  .block-toggle input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+  .step-hint { font-size: 11px; color: var(--muted); margin-top: 7px; padding-left: 2px; }
+
+  .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 520px) { .toggle-grid { grid-template-columns: 1fr; } }
+  .tgl {
+    display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none;
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 9px; padding: 9px 13px;
+    font-size: 12px; color: var(--text); transition: border-color .15s, background .15s;
+  }
+  .tgl:hover { border-color: #4a5580; }
+  .tgl input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .tgl:has(input:checked) { border-color: var(--accent); background: rgba(91,108,255,.1); }
+
+  .advanced { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .advanced summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 600; user-select: none; }
+  .advanced summary:hover { color: #7d8aff; }
+  .advanced[open] summary { margin-bottom: 8px; }
+
+  .infra-notice { display: flex; align-items: flex-start; gap: 10px; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+  .infra-notice--warn { background: rgba(224,123,57,.1); border: 1px solid rgba(224,123,57,.3); color: #e8a87c; }
+  .infra-notice--info { background: rgba(91,108,255,.08); border: 1px solid rgba(91,108,255,.25); color: #aeb8e8; }
+  .infra-notice-icon { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
+
+  .infra-sizing-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .infra-sizing-title { font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .sizing-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .sizing-row:last-of-type { border-bottom: none; }
+  .sizing-svc { font-size: 12px; font-weight: 600; color: var(--text); flex-shrink: 0; max-width: 40%; }
+  .sizing-spec { font-size: 11px; color: var(--muted); text-align: right; line-height: 1.4; }
+  .sizing-note { font-size: 11px; color: var(--muted); line-height: 1.55; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .price-placeholder {
+    font-size: 12px; color: var(--muted); border: 1px dashed var(--border); border-radius: 7px;
+    padding: 12px 14px; text-align: center; margin-top: 12px;
+  }
+
+  /* Result panel */
+  .result-panel { background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 24px 26px; position: sticky; top: 16px; }
+  .result-badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; background: rgba(0,201,167,.12); color: var(--accent2); border: 1px solid rgba(0,201,167,.25); border-radius: 20px; padding: 3px 10px; margin-bottom: 12px; }
+  .result-price { font-size: 27px; font-weight: 800; color: #fff; line-height: 1.15; }
+  .result-price .rub { color: var(--accent2); }
+  .result-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .result-divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .years-switch { display: flex; gap: 5px; margin: 14px 0 4px; }
+  .year-btn {
+    flex: 1; text-align: center; cursor: pointer; font-size: 12px; font-weight: 600;
+    border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 0; background: var(--surface2); color: var(--muted); user-select: none;
+  }
+  .year-btn.active { border-color: var(--accent); background: rgba(91,108,255,.15); color: #fff; }
+
+  .result-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 7px; }
+  .rr-name { font-size: 12px; color: var(--muted); flex: 1; }
+  .rr-val { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .result-row.total .rr-name { font-size: 12px; font-weight: 700; color: var(--text); }
+  .result-row.total .rr-val { color: var(--accent2); font-size: 12px; }
+
+  .grp-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .grp-title { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+  .cta-btn { display: block; width: 100%; margin-top: 16px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; border: none; border-radius: 10px; padding: 12px 16px; cursor: pointer; }
+  .cta-btn:hover { background: #4a5de8; }
+  .result-notice { margin-top: 14px; font-size: 10px; color: var(--muted); line-height: 1.65; border-top: 1px solid var(--border); padding-top: 12px; }
+  .cfg-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .cfg-field label { font-size: 12px; color: var(--muted); }
+  .cfg-field input { width: 80px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-size: 13px; font-weight: 600; text-align: center; padding: 5px 8px; outline: none; -moz-appearance: textfield; }
+  .cfg-field input::-webkit-inner-spin-button, .cfg-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .cfg-field input:focus { border-color: var(--accent); }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 32px 36px; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .modal .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .modal-field { margin-bottom: 16px; }
+  .modal-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; letter-spacing: .05em; text-transform: uppercase; }
+  .modal-field input, .modal-field textarea { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 9px; color: var(--text); font-size: 14px; padding: 10px 14px; outline: none; font-family: inherit; resize: vertical; }
+  .modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent); }
+  .modal-field textarea { min-height: 80px; }
+  .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .btn-primary { flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 9px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn-primary:hover { background: #4a5de8; }
+  .btn-secondary { background: transparent; color: var(--muted); border: 1.5px solid var(--border); border-radius: 9px; padding: 12px 20px; font-size: 14px; cursor: pointer; }
+  .btn-secondary:hover { border-color: #4a5580; color: var(--text); }
+  .modal-success { text-align: center; padding: 24px 0; }
+  .modal-success .check { font-size: 40px; margin-bottom: 12px; }
+  .modal-success h3 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .modal-success p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .modal-summary { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
+  .modal-summary .ms-price { font-size: 20px; font-weight: 800; color: var(--accent2); margin-bottom: 4px; }
+  .modal-summary .ms-sub { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="header-eyebrow">Navicon · Yandex DataLens + DWH</div>
+    <h1>Калькулятор стоимости внедрения</h1>
+    <p>Индикативная оценка. Диапазон MIN–MAX, без НДС.</p>
+  </div>
+
+  <div class="layout">
+    <div>
+
+      <!-- ════ КАРТА 1: ПАРАМЕТРЫ BI-ПРОЕКТА ════ -->
+      <div class="card">
+        <div class="card-head">
+          <h2><span class="card-num">A</span>Параметры BI-проекта</h2>
+          <p>Аналитика, отчёты и дашборды в Yandex DataLens.</p>
+        </div>
+
+      <!-- 1. DWH -->
+      <div class="section">
+        <div class="section-label"><span class="num">1</span>Наличие DWH (хранилища данных)</div>
+        <div class="options" id="q1">
+          <div class="opt selected" data-key="dwh" data-val="ready" onclick="pick(this,'q1')">
+            <div class="opt-title">DWH + витрины готовы</div>
+          </div>
+          <div class="opt" data-key="dwh" data-val="no_vitrine" onclick="pick(this,'q1')">
+            <div class="opt-title">Есть DWH, нет витрин</div>
+          </div>
+          <div class="opt" data-key="dwh" data-val="none" onclick="pick(this,'q1')">
+            <div class="opt-title">DWH нет (с нуля)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Размещение -->
+      <div class="section">
+        <div class="section-label"><span class="num">2</span>Размещение BI</div>
+        <div class="options" id="q2">
+          <div class="opt selected" data-key="infra" data-val="cloud" onclick="pick(this,'q2')">
+            <div class="opt-title">Yandex Cloud</div>
+          </div>
+          <div class="opt" data-key="infra" data-val="onprem" onclick="pick(this,'q2')">
+            <div class="opt-title">On-premise</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Количество отчётов -->
+      <div class="section">
+        <div class="section-label"><span class="num">3</span>Количество отчётов (N)</div>
+        <div class="options" id="q3">
+          <div class="opt selected" data-key="n" data-val="3" data-lvl="1" onclick="pick(this,'q3')"><div class="opt-title">До 5</div></div>
+          <div class="opt" data-key="n" data-val="10" data-lvl="2" onclick="pick(this,'q3')"><div class="opt-title">5–15</div></div>
+          <div class="opt" data-key="n" data-val="22" data-lvl="3" onclick="pick(this,'q3')"><div class="opt-title">15–30</div></div>
+          <div class="opt" data-key="n" data-val="40" data-lvl="4" onclick="pick(this,'q3')"><div class="opt-title">30+</div></div>
+          <div class="opt" data-key="n" data-val="custom" onclick="pickCustom(this,'q3','n-custom-row')"><div class="opt-title">Точное количество</div></div>
+        </div>
+        <div id="n-custom-row" class="custom-input-row" style="display:none">
+          <input type="number" id="n-custom" min="1" max="999" placeholder="Введите количество отчётов" oninput="applyCustomN()">
+        </div>
+      </div>
+
+      <!-- 4. Расчётные показатели -->
+      <div class="section">
+        <div class="section-label"><span class="num">4</span>Расчётные показатели (M)</div>
+        <div class="options" id="q4">
+          <div class="opt selected" data-key="m" data-val="25" data-lvl="1" onclick="pick(this,'q4')"><div class="opt-title">До 50</div></div>
+          <div class="opt" data-key="m" data-val="100" data-lvl="2" onclick="pick(this,'q4')"><div class="opt-title">50–150</div></div>
+          <div class="opt" data-key="m" data-val="225" data-lvl="3" onclick="pick(this,'q4')"><div class="opt-title">150–300</div></div>
+          <div class="opt" data-key="m" data-val="400" data-lvl="4" onclick="pick(this,'q4')"><div class="opt-title">300+</div></div>
+          <div class="opt" data-key="m" data-val="custom" onclick="pickCustom(this,'q4','m-custom-row')"><div class="opt-title">Точное количество</div></div>
+        </div>
+        <div id="m-custom-row" class="custom-input-row" style="display:none">
+          <input type="number" id="m-custom" min="1" max="9999" placeholder="Введите количество показателей" oninput="applyCustomM()">
+        </div>
+      </div>
+
+      <!-- 5. Сложность отчётов -->
+      <div class="section">
+        <div class="section-label"><span class="num">5</span>Сложность отчётов</div>
+        <div class="options" id="q5">
+          <div class="opt selected" data-key="complexity" data-val="simple" onclick="pick(this,'q5')"><div class="opt-title">Простые</div></div>
+          <div class="opt" data-key="complexity" data-val="medium" onclick="pick(this,'q5')"><div class="opt-title">Средние</div></div>
+          <div class="opt" data-key="complexity" data-val="hard" onclick="pick(this,'q5')"><div class="opt-title">Сложные</div></div>
+          <div class="opt" data-key="complexity" data-val="mixed" onclick="pick(this,'q5')"><div class="opt-title">Смешанные</div></div>
+        </div>
+      </div>
+
+      <!-- 6. Ролевая модель -->
+      <div class="section">
+        <div class="section-label"><span class="num">6</span>Ролевая модель (RLS)</div>
+        <div class="options" id="q6">
+          <div class="opt selected" data-key="rls" data-val="none" onclick="pick(this,'q6')"><div class="opt-title">Без ограничений</div></div>
+          <div class="opt" data-key="rls" data-val="simple" onclick="pick(this,'q6')"><div class="opt-title">Простые роли</div></div>
+          <div class="opt" data-key="rls" data-val="rls" onclick="pick(this,'q6')"><div class="opt-title">Row-Level Security</div></div>
+        </div>
+      </div>
+
+      <!-- 7. Инструкции -->
+      <div class="section">
+        <div class="section-label"><span class="num">7</span>Инструкции пользователей</div>
+        <div class="options" id="q7">
+          <div class="opt selected" data-key="docs" data-val="no" onclick="pick(this,'q7')"><div class="opt-title">Не нужны</div></div>
+          <div class="opt" data-key="docs" data-val="yes" onclick="pick(this,'q7')"><div class="opt-title">Нужны</div></div>
+        </div>
+      </div>
+
+      </div><!-- /card A -->
+
+      <!-- ════ КАРТА 2: ЛИЦЕНЗИИ ════ -->
+      <div class="card">
+        <div class="card-head">
+          <h2><span class="card-num">B</span>Лицензии DataLens</h2>
+          <p>Годовые лицензии на пользователей. Ставка зависит от размещения BI.</p>
+        </div>
+        <div class="section">
+          <div class="num-inputs">
+            <div class="num-field"><label>Редакторы / Администраторы</label><input type="number" id="u-editors" value="0" min="0" max="999" oninput="calculate()"></div>
+            <div class="num-field"><label>Бизнес-пользователи</label><input type="number" id="u-viewers" value="0" min="0" max="9999" oninput="calculate()"></div>
+          </div>
+          <div class="step-hint">Ставка определяется автоматически по размещению (Облако / On-premise)</div>
+          <div id="lic-warning" class="infra-notice infra-notice--warn" style="display:none;margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- ════ КАРТА 3: DWH И ОБЛАЧНАЯ ИНФРАСТРУКТУРА ════ -->
+      <div class="card" id="dwh-wrap">
+        <div class="card-head">
+          <h2><span class="card-num">C</span>DWH и облачная инфраструктура</h2>
+          <p id="dwh-desc"></p>
+          <label class="block-toggle" id="dwh-opt-toggle" style="display:none">
+            <input type="checkbox" id="dwh-cloud-needed" onchange="onCloudNeededChange()">
+            <span>Нужна облачная инфраструктура</span>
+          </label>
+        </div>
+
+        <div id="dwh-block" style="display:none">
+          <!-- Объём -->
+          <div class="section">
+            <div class="section-label">Объём хранилища, ТБ</div>
+            <div class="num-inputs">
+              <div class="num-field">
+                <label>Объём данных в хранилище</label>
+                <input type="number" id="d-volume" value="2" min="0" step="0.5" oninput="onVolumeInput()">
+              </div>
+            </div>
+            <div id="d-dbrec" class="infra-notice infra-notice--info" style="margin-top:10px"></div>
+          </div>
+
+          <!-- Авто-инфо: СУБД, масштаб, слои -->
+          <div class="section">
+            <div class="section-label">Параметры определяются автоматически <span class="auto-tag">авто</span></div>
+            <div class="infra-sizing-card">
+              <div class="result-row"><span class="rr-name">Целевая СУБД</span><span class="rr-val" id="auto-db">—</span></div>
+              <div class="result-row"><span class="rr-name">Масштаб данных</span><span class="rr-val" id="auto-scale">—</span></div>
+              <div class="result-row"><span class="rr-name">Слои DWH</span><span class="rr-val" id="auto-layers">—</span></div>
+              <div class="step-hint">СУБД — по объёму; масштаб — по отчётам и показателям; слои — по варианту «Наличие DWH». Окружения: Dev + Prod.</div>
+            </div>
+          </div>
+
+          <!-- Доп. модули (свёрнуто) -->
+          <div class="section">
+            <details class="advanced">
+              <summary>Дополнительные модули DWH (для продвинутых)</summary>
+              <div style="margin-top:14px">
+                <div class="toggle-grid">
+                  <label class="tgl"><input type="checkbox" id="m-hist" onchange="calculate()"><span>Историческая загрузка</span></label>
+                  <label class="tgl"><input type="checkbox" id="m-dq" onchange="calculate()"><span>Data Quality</span></label>
+                  <label class="tgl"><input type="checkbox" id="m-catalog" onchange="calculate()"><span>Каталог данных и метаданные</span></label>
+                  <label class="tgl"><input type="checkbox" id="m-cicd" checked onchange="calculate()"><span>CI/CD</span></label>
+                  <label class="tgl"><input type="checkbox" id="m-dr" onchange="calculate()"><span>DR (катастрофоустойчивость)</span></label>
+                  <label class="tgl"><input type="checkbox" id="m-console" onchange="calculate()"><span>Консоль администрирования</span></label>
+                </div>
+              </div>
+            </details>
+            <input type="checkbox" id="m-auth" checked hidden>
+            <input type="checkbox" id="m-train" checked hidden>
+            <input type="number" id="adv-ist" hidden>
+            <input type="number" id="adv-spr" hidden>
+            <input type="number" id="adv-fct" hidden>
+          </div>
+
+          <!-- Сайзинг + цены -->
+          <div class="section">
+            <div class="section-label" id="sizing-label">Рекомендуемый сайзинг Yandex Cloud</div>
+            <div id="infra-onprem-notice" style="display:none" class="infra-notice infra-notice--warn">
+              <span class="infra-notice-icon">⚠</span>
+              Размещение выбрано on-premise: вся инфраструктура разворачивается на мощностях заказчика. Облачные ресурсы Yandex Cloud не рассчитываются. Заказчику необходимо самостоятельно подготовить и предоставить вычислительные мощности.
+            </div>
+            <div class="infra-sizing-card" id="sizing-card">
+              <div class="infra-sizing-title">Managed-сервисы Yandex Cloud</div>
+              <div id="sizing-rows"></div>
+              <div class="price-placeholder">
+                Стоимость облачных ресурсов (₽/год) рассчитана по прайсу Yandex Cloud (цены с 01.05.2026, Intel Ice Lake, 100% vCPU).
+              </div>
+              <div class="sizing-note">
+                Стартовые пресеты по масштабу данных. Финальный сайзинг — после профилирования нагрузки. Для Dev/QA ресурсы можно уменьшать.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /card C -->
+
+    </div><!-- /left -->
+
+    <!-- ════ ПРАВАЯ ПАНЕЛЬ ════ -->
+    <div class="result-panel">
+      <div class="result-badge">Индикативная оценка</div>
+      <div class="result-price" id="rp-grand-total">—</div>
+      <div class="result-sub" id="rp-grand-sub">—</div>
+
+      <div class="years-switch" id="years-switch"></div>
+      <div class="result-sub" id="rp-years-hint" style="margin-top:2px"></div>
+
+      <!-- Сводка по разделам (всегда видна) -->
+      <div class="grp-block" style="border-top:none;padding-top:0;margin-top:18px">
+        <div class="result-row total"><span class="rr-name">1 · Разработка (разовая)</span><span class="rr-val" id="rp-dev-total">—</span></div>
+        <div class="result-sub" id="rp-dev-hours" style="margin-top:2px"></div>
+        <div class="result-sub" id="rp-dev-weeks" style="margin-top:1px"></div>
+      </div>
+      <div class="grp-block" id="rp-lic-block" style="display:none;margin-top:10px;padding-top:10px">
+        <div class="result-row total"><span class="rr-name">2 · Лицензии DataLens (в год)</span><span class="rr-val" id="rp-lic-total">—</span></div>
+      </div>
+      <div class="grp-block" id="rp-infra-block" style="display:none;margin-top:10px;padding-top:10px">
+        <div class="result-row total"><span class="rr-name">3 · Инфраструктура (в год)</span><span class="rr-val" id="rp-infra-total">—</span></div>
+      </div>
+      <div class="grp-block" id="rp-support-block" style="display:none;margin-top:10px;padding-top:10px">
+        <div class="result-row total"><span class="rr-name">Поддержка (со 2-го года)</span><span class="rr-val" id="rp-support-val">—</span></div>
+      </div>
+
+      <!-- Детальная оценка (выпадающая) -->
+      <details class="advanced" style="margin-top:16px">
+        <summary>Показать детальную оценку</summary>
+        <div style="margin-top:12px">
+          <div class="grp-title">Разработка · часы по блокам</div>
+          <div id="rp-dev-rows"></div>
+
+          <div id="rp-lic-detail" style="display:none">
+            <div class="grp-title" style="margin-top:14px">Лицензии</div>
+            <div id="rp-lic-rows"></div>
+          </div>
+
+          <div id="rp-infra-detail" style="display:none">
+            <div class="grp-title" style="margin-top:14px">Инфраструктура</div>
+            <div id="rp-infra-rows"></div>
+          </div>
+
+          <div id="rp-yearly"></div>
+        </div>
+      </details>
+
+      <!-- Параметры расчёта (для менеджера) -->
+      <details class="advanced" style="margin-top:10px">
+        <summary>Параметры расчёта</summary>
+        <div style="margin-top:12px">
+          <div class="cfg-field"><label>Ставка работ, ₽/ч</label><input type="number" id="cfg-rate" value="5160" oninput="syncConfig()"></div>
+          <div class="cfg-field"><label>Надбавка РП, %</label><input type="number" id="cfg-pm" value="30" oninput="syncConfig()"></div>
+          <div class="cfg-field"><label>Поддержка, % от работ/год</label><input type="number" id="cfg-support" value="20" oninput="syncConfig()"></div>
+          <div class="cfg-field"><label>Инфляция с 3-го года, %</label><input type="number" id="cfg-inflation" value="7" oninput="syncConfig()"></div>
+          <div class="cfg-field"><label>Диапазон инфры, ±%</label><input type="number" id="cfg-infra-range" value="15" oninput="syncConfig()"></div>
+          <div class="cfg-field"><label>Рост данных, %/год</label><input type="number" id="cfg-growth" value="10" oninput="syncConfig()"></div>
+        </div>
+      </details>
+
+      <button class="cta-btn" onclick="openModal()">Получить детальное КП</button>
+      <button class="cta-btn" style="background:transparent;border:1.5px solid var(--border);color:var(--text);margin-top:8px" onclick="exportEstimate()">Экспортировать оценку</button>
+      <div class="result-notice">
+        Оценка индикативная, не является офертой. Уточняется после анализа требований.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" onclick="closeModalOverlay(event)">
+  <div class="modal">
+    <div id="modal-form-view">
+      <h2>Получить детальное КП</h2>
+      <p class="modal-sub">Заполните контактные данные — мы подготовим детальное коммерческое предложение на основе ваших параметров.</p>
+      <div class="modal-summary" id="modal-summary"></div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Имя</label><input type="text" id="cf-name" placeholder="Иван Иванов"></div>
+        <div class="modal-field"><label>Должность</label><input type="text" id="cf-title" placeholder="IT-директор"></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Компания</label><input type="text" id="cf-company" placeholder="ООО «Пример»"></div>
+        <div class="modal-field"><label>Телефон</label><input type="tel" id="cf-phone" placeholder="+7 (___) ___-__-__"></div>
+      </div>
+      <div class="modal-field"><label>E-mail</label><input type="email" id="cf-email" placeholder="ivan@company.ru"></div>
+      <div class="modal-field"><label>Комментарий (необязательно)</label><textarea id="cf-comment" placeholder="Дополнительные требования, сроки, вопросы..."></textarea></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+        <button class="btn-primary" onclick="submitForm()">Отправить запрос</button>
+      </div>
+    </div>
+    <div id="modal-success-view" class="modal-success" style="display:none">
+      <div class="check">✓</div>
+      <h3>Запрос отправлен</h3>
+      <p>Мы получили вашу заявку и свяжемся с вами в течение одного рабочего дня для уточнения деталей и подготовки КП.</p>
+      <button class="btn-primary" style="max-width:200px;margin:24px auto 0;display:block" onclick="closeModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+const state = {
+  dwh: 'ready', infra: 'cloud',
+  n: 3, nLvl: 1, m: 25, mLvl: 1,
+  complexity: 'simple', rls: 'none', docs: 'no',
+  cloudNeeded: false,   // для варианта DWH+витрины готовы
+  volume: 2, env: 2
+};
+
+const LIC = { editor: { cloud: 11880, onprem: 48000 }, viewer: { cloud: 11880, onprem: 12000 } };
+// Параметры расчёта (редактируются в панели «Параметры расчёта»)
+let RATE = 5160;          // средневзвешенная ставка ₽/ч
+let PM = 1.3;             // надбавка РП к BI-работам (1.3 = +30%)
+let SUPPORT_RATE = 0.2;   // поддержка = доля от работ в год
+let INFLATION = 0.07;     // инфляция периодических статей с 3-го года
+let INFRA_RANGE = 0.15;   // диапазон ±15% на облачную инфраструктуру
+let DATA_GROWTH = 0.10;   // годовой прирост объёма данных (на хранилище)
+
+function syncConfig() {
+  const g = (id, def) => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? def : v; };
+  RATE = g('cfg-rate', 5160);
+  PM = 1 + g('cfg-pm', 30) / 100;
+  SUPPORT_RATE = g('cfg-support', 20) / 100;
+  INFLATION = g('cfg-inflation', 7) / 100;
+  INFRA_RANGE = g('cfg-infra-range', 15) / 100;
+  DATA_GROWTH = g('cfg-growth', 10) / 100;
+  calculate();
+}
+
+
+const SCALE_BY_LVL = { 1: 'S', 2: 'M', 3: 'L', 4: 'XL' };
+const SCALE_PRESET = {
+  S:  { ist: 2,  spr: 8,  fct: 12 },
+  M:  { ist: 4,  spr: 15, fct: 25 },
+  L:  { ist: 8,  spr: 30, fct: 55 },
+  XL: { ist: 15, spr: 70, fct: 120 }
+};
+
+const SIZING = {
+  pg: { S:'s3.2 · 2 vCPU/8 ГБ · 1 хост · 100 ГБ SSD', M:'s3.4 · 4 vCPU/16 ГБ · 2 хоста (HA) · 500 ГБ SSD', L:'s3.8 · 8 vCPU/32 ГБ · 2 хоста (HA) · 1 ТБ SSD', XL:'s3.16 · 16 vCPU/64 ГБ · 3 хоста (HA) · 2 ТБ SSD' },
+  ch: { S:'s3.2 · 2 vCPU/8 ГБ · 1 хост · 100 ГБ SSD', M:'s3.4 · 4 vCPU/16 ГБ · 1–2 хоста · 500 ГБ SSD', L:'s3.8 · 8 vCPU/32 ГБ · 2 хоста · 1 ТБ SSD', XL:'s3.16 · 16 vCPU/64 ГБ · 3 хоста (шардинг) · 2+ ТБ SSD' },
+  gp: { S:'— (используйте PostgreSQL)', M:'— (используйте PostgreSQL)', L:'master s3.4 + 2× segment s3.8 · от 2 ТБ', XL:'master s3.8 + 4× segment s3.16 · 10+ ТБ' },
+  airflow: { S:'1 webserver · 1 worker · 2 vCPU/4 ГБ', M:'1 webserver · 2 worker · 2 vCPU/8 ГБ', L:'2 webserver · 4 worker · 4 vCPU/16 ГБ', XL:'2 webserver · 4–8 worker (autoscale) · 4 vCPU/16 ГБ' },
+  s3: { S:'до 1 ТБ', M:'до 5 ТБ', L:'до 20 ТБ', XL:'50+ ТБ' }
+};
+
+// ── Цены Yandex Cloud (партнёрский прайс 17.05.2026, Intel Ice Lake, 100% vCPU) ──
+const HOURS_YEAR = 365 * 24; // 8760
+const PRICE = {
+  pg: { cpu: 1.8792, ram: 0.5072, ssd: 0.0218 },
+  ch: { cpu: 1.98,   ram: 0.54,   ssd: 0.0218 },
+  gp: { cpu: 2.47,   ram: 0.6571, ssd: 0.0218 },
+  airflow: { cpu: 2.88, ram: 0.9684 }, // vCPU и RAM, хранилище DAG в S3 отдельно
+  s3store: 0.0033 // gbyte*hour, стандартное хранилище
+};
+// Спеки хостов: [vCPU, RAM ГБ, SSD ГБ, число хостов]
+const MACHINE = {
+  pg: { S:[2,8,100,1],  M:[4,16,500,2],  L:[8,32,1024,2], XL:[16,64,2048,3] },
+  ch: { S:[2,8,100,1],  M:[4,16,500,1],  L:[8,32,1024,2], XL:[16,64,2048,3] },
+  gp: { L:[8,32,1024,3], XL:[16,64,2048,5] }
+};
+// Airflow: суммарные [vCPU, RAM ГБ] по кластеру (веб-сервер + планировщик + воркеры, конфиг standard 1 vCPU/4 ГБ)
+const AIRFLOW = { S:[3,12], M:[4,16], L:[6,24], XL:[8,32] };
+// Объём Object Storage по масштабу (ТБ)
+const S3_TB = { S:1, M:5, L:20, XL:50 };
+
+function hostYear(svc, scale) {
+  const m = MACHINE[svc] && MACHINE[svc][scale];
+  if (!m) return 0;
+  const r = PRICE[svc];
+  const [cpu, ram, ssd, hosts] = m;
+  return (cpu*r.cpu + ram*r.ram + ssd*r.ssd) * HOURS_YEAR * hosts;
+}
+function airflowYear(scale) {
+  const a = AIRFLOW[scale];
+  if (!a) return 0;
+  const [cpu, ram] = a;
+  return (cpu*PRICE.airflow.cpu + ram*PRICE.airflow.ram) * HOURS_YEAR;
+}
+function s3Year(tb) { return tb * 1024 * PRICE.s3store * HOURS_YEAR; }
+// Доля стоимости дисков кластера (растёт вместе с объёмом данных)
+function diskPortion(svc, flag, scale) {
+  if (!flag) return 0;
+  const m = MACHINE[svc] && MACHINE[svc][scale];
+  if (!m) return 0;
+  const [, , ssd, hosts] = m;
+  return ssd * PRICE[svc].ssd * HOURS_YEAR * hosts;
+}
+
+let selectedYears = 1;
+
+// ══════════════════════════════════════════════
+// INPUT HANDLERS
+// ══════════════════════════════════════════════
+function pick(el, groupId) {
+  document.querySelectorAll('#' + groupId + ' .opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const key = el.dataset.key;
+  state[key] = isNaN(el.dataset.val) ? el.dataset.val : Number(el.dataset.val);
+  if (el.dataset.lvl) {
+    if (key === 'n') state.nLvl = Number(el.dataset.lvl);
+    if (key === 'm') state.mLvl = Number(el.dataset.lvl);
+  }
+  if (groupId === 'q3') document.getElementById('n-custom-row').style.display = 'none';
+  if (groupId === 'q4') document.getElementById('m-custom-row').style.display = 'none';
+  if (key === 'dwh') updateDwhMode();
+  if (key === 'infra') updateInfraNotice();
+  calculate();
+}
+
+function pickD(el, groupId, key) {
+  document.querySelectorAll('#' + groupId + ' .opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const v = el.dataset.val;
+  state[key] = isNaN(v) ? v : Number(v);
+  calculate();
+}
+
+function pickCustom(el, groupId, rowId) {
+  document.querySelectorAll('#' + groupId + ' .opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const row = document.getElementById(rowId);
+  row.style.display = '';
+  row.querySelector('input').focus();
+}
+
+// Точное число → определяем уровень по границам
+function levelFromN(v) { if (v <= 5) return 1; if (v <= 15) return 2; if (v <= 30) return 3; return 4; }
+function levelFromM(v) { if (v <= 50) return 1; if (v <= 150) return 2; if (v <= 300) return 3; return 4; }
+
+function applyCustomN() {
+  const v = parseInt(document.getElementById('n-custom').value);
+  if (v > 0) { state.n = v; state.nLvl = levelFromN(v); calculate(); }
+}
+function applyCustomM() {
+  const v = parseInt(document.getElementById('m-custom').value);
+  if (v > 0) { state.m = v; state.mLvl = levelFromM(v); calculate(); }
+}
+
+function onVolumeInput() {
+  const v = parseFloat(document.getElementById('d-volume').value);
+  state.volume = isNaN(v) ? 0 : v;
+  calculate();
+}
+function onCloudNeededChange() {
+  state.cloudNeeded = document.getElementById('dwh-cloud-needed').checked;
+  updateDwhMode();
+  calculate();
+}
+function updateInfraNotice() {
+  const onprem = state.infra === 'onprem';
+  const n = document.getElementById('infra-onprem-notice');
+  if (n) n.style.display = onprem ? '' : 'none';
+  // На on-premise скрываем облачный сайзинг и цены
+  const card = document.getElementById('sizing-card');
+  if (card) card.style.display = onprem ? 'none' : '';
+  const label = document.getElementById('sizing-label');
+  if (label) label.textContent = onprem ? 'Инфраструктура (on-premise)' : 'Рекомендуемый сайзинг Yandex Cloud';
+}
+
+// Показ DWH-блока в зависимости от варианта вопроса 1
+function updateDwhMode() {
+  const desc = document.getElementById('dwh-desc');
+  const optToggle = document.getElementById('dwh-opt-toggle');
+  const block = document.getElementById('dwh-block');
+
+  if (state.dwh === 'none') {
+    desc.textContent = 'DWH строится с нуля: STG + ODS + DDS + DMT. Облачная инфраструктура нужна обязательно.';
+    optToggle.style.display = 'none';
+    block.style.display = '';
+  } else if (state.dwh === 'no_vitrine') {
+    desc.textContent = 'Строятся только витрины (DMT) поверх существующего DWH. Облачная инфраструктура — по необходимости.';
+    optToggle.style.display = '';
+    block.style.display = state.cloudNeeded ? '' : 'none';
+  } else { // ready
+    desc.textContent = 'DWH и витрины готовы. Разработка хранилища не требуется. Облачная инфраструктура — по необходимости.';
+    optToggle.style.display = '';
+    block.style.display = state.cloudNeeded ? '' : 'none';
+  }
+}
+
+// Нужен ли DWH-расчёт работ (разработка хранилища/витрин)
+function dwhDevActive() { return state.dwh === 'none' || state.dwh === 'no_vitrine'; }
+// Нужен ли блок облачной инфраструктуры (только для Yandex Cloud)
+function infraActive() {
+  if (state.infra === 'onprem') return false; // on-premise — всё на железе заказчика
+  if (state.dwh === 'none') return true;
+  return state.cloudNeeded; // для no_vitrine и ready — по чекбоксу
+}
+
+// ══════════════════════════════════════════════
+// CALCULATION
+// ══════════════════════════════════════════════
+function calculate() {
+  const N = state.n, M = state.m;
+  const isCloud = state.infra === 'cloud';
+
+  // ── BI-работы (DataLens) ──
+  // 1. Анализ и проектирование
+  const analysisMin = N*2 + M*0.2 + 15;
+  const analysisMax = N*3.5 + M*0.3 + 25;
+  // 4. Разработка мер
+  const measuresMin = M*0.2, measuresMax = M*0.3;
+  // 5. Разработка отчётов
+  let reportsMin, reportsMax;
+  if (state.complexity === 'simple') { reportsMin = N*6;  reportsMax = N*10; }
+  else if (state.complexity === 'medium') { reportsMin = N*10; reportsMax = N*16; }
+  else if (state.complexity === 'hard') { reportsMin = N*16; reportsMax = N*28; }
+  else { reportsMin = N*10; reportsMax = N*18; }
+  // 6. RLS
+  let rlsMin = 0, rlsMax = 0;
+  if (state.rls === 'simple') { rlsMin = 15; rlsMax = 25; }
+  else if (state.rls === 'rls') { rlsMin = 40; rlsMax = 70; }
+  // 7. Инструкции
+  let docsMin = 0, docsMax = 0;
+  if (state.docs === 'yes') { docsMin = N*4; docsMax = N*5; }
+  // 8. Тестирование
+  let testCoef = 0.25;
+  if (state.complexity === 'medium' || state.complexity === 'mixed') testCoef = 0.35;
+  else if (state.complexity === 'hard') testCoef = 0.45;
+  const testMin = reportsMin*testCoef, testMax = reportsMax*testCoef;
+  // 9. Приёмочные испытания
+  const uatMin = N*2.5, uatMax = N*4;
+
+  // BI-работы с надбавкой РП (×1.3)
+  const biRows = [
+    { name: 'Анализ и проектирование (BI)', min: analysisMin*PM, max: analysisMax*PM },
+    { name: 'Разработка мер', min: measuresMin*PM, max: measuresMax*PM },
+    { name: 'Разработка отчётов', min: reportsMin*PM, max: reportsMax*PM },
+    ...(rlsMin+rlsMax>0 ? [{ name:'Ролевая модель', min: rlsMin*PM, max: rlsMax*PM }] : []),
+    ...(docsMin+docsMax>0 ? [{ name:'Инструкции', min: docsMin*PM, max: docsMax*PM }] : []),
+    { name: 'Тестирование', min: testMin*PM, max: testMax*PM },
+    { name: 'Приёмочные испытания', min: uatMin*PM, max: uatMax*PM },
+  ];
+
+  // ── DWH-данные: считаем, если строим DWH/витрины ИЛИ нужна облачная инфра ──
+  let dwhRows = [], dwhData = null;
+  const needDwhData = dwhDevActive() || infraActive();
+  if (needDwhData) {
+    dwhData = calcDwh();
+    if (dwhDevActive()) dwhRows = dwhData.rows; // работы только если реально строим
+  }
+
+  // ── Все работы вместе ──
+  const allRows = [...biRows, ...dwhRows];
+  let devMin = 0, devMax = 0;
+  for (const r of allRows) { devMin += r.min; devMax += r.max; }
+  const devCostMin = Math.round(devMin * RATE);
+  const devCostMax = Math.round(devMax * RATE);
+
+  // ── Лицензии (в год) ──
+  const licKey = isCloud ? 'cloud' : 'onprem';
+  let editors = parseInt(document.getElementById('u-editors').value) || 0;
+  let viewers = parseInt(document.getElementById('u-viewers').value) || 0;
+
+  // On-premise: минимум 100 пользователей всего, минимум 1 редактор
+  let licWarn = '';
+  let billEditors = editors, billViewers = viewers;
+  if (!isCloud && (editors > 0 || viewers > 0)) {
+    if (editors < 1) { billEditors = 1; }
+    const total = billEditors + billViewers;
+    if (total < 100) {
+      // добиваем до 100 за счёт бизнес-пользователей
+      billViewers = 100 - billEditors;
+      licWarn = `On-premise: минимальная поставка — 100 лицензий (минимум 1 редактор). Расчёт выполнен на ${billEditors} ред. + ${billViewers} бизнес-польз. = 100.`;
+    } else if (editors < 1) {
+      licWarn = 'On-premise: требуется минимум 1 редактор. Добавлен 1 редактор в расчёт.';
+    }
+  }
+  const licEditors = billEditors * LIC.editor[licKey];
+  const licViewers = billViewers * LIC.viewer[licKey];
+  const licTotal = licEditors + licViewers;
+  editors = billEditors; viewers = billViewers;
+
+  // ── Инфраструктура (в год) — расчёт по сайзингу и прайсу YC ──
+  const infraOn = infraActive();
+  let infraYear = 0, infraStorage = 0, infraItems = [];
+  if (infraOn && dwhData) {
+    const sc = dwhData.scale;
+    const has_GP = state.volume >= 5 ? 1 : 0;
+    const has_PG = has_GP ? 0 : 1;
+    if (has_PG) { const c = hostYear('pg', sc); infraYear += c; infraItems.push({ name:'Managed PostgreSQL', cost:c }); }
+    if (has_GP) { const c = hostYear('gp', sc); infraYear += c; infraItems.push({ name:'Managed Greenplum', cost:c }); }
+    const cch = hostYear('ch', sc); infraYear += cch; infraItems.push({ name:'Managed ClickHouse', cost:cch });
+    const caf = airflowYear(sc); infraYear += caf; infraItems.push({ name:'Managed Airflow', cost:caf });
+    const cs3 = s3Year(S3_TB[sc]); infraYear += cs3; infraStorage += cs3; infraItems.push({ name:'Object Storage', cost:cs3 });
+    // диски кластеров — тоже хранилище (растёт с данными)
+    infraStorage += diskPortion('pg', has_PG, sc) + diskPortion('gp', has_GP, sc) + diskPortion('ch', 1, sc);
+  }
+  infraYear = Math.round(infraYear);
+  infraStorage = Math.round(infraStorage);
+
+  renderResult({
+    allRows, devCostMin, devCostMax, devMin, devMax,
+    editors, viewers, licEditors, licViewers, licTotal, licKey, licWarn,
+    infraOn, infraYear, infraStorage, infraItems, dwhData
+  });
+
+  // обновляем сайзинг + авто-инфо
+  updateAutoInfo(dwhData);
+}
+
+// ── DWH-расчёт ──
+function calcDwh() {
+  const vol = state.volume;
+  // СУБД автоматически: <5 ТБ PostgreSQL, >=5 ТБ Greenplum; ClickHouse всегда
+  const has_GP = vol >= 5 ? 1 : 0;
+  const has_PG = has_GP ? 0 : 1;
+  const has_CH = 1;
+
+  // Слои по варианту вопроса 1
+  // no_vitrine → только DMT; none → STG+ODS+DDS+DMT
+  let layer_DDS, layer_DMT;
+  if (state.dwh === 'no_vitrine') { layer_DDS = 0; layer_DMT = 1; }
+  else { layer_DDS = 1; layer_DMT = 1; } // none
+
+  // Загрузка — только батч (Airflow)
+  const load_CDC = 0, load_NiFi = 0;
+  const env = state.env;
+
+  const auth    = document.getElementById('m-auth').checked ? 1 : 0;
+  const hist    = document.getElementById('m-hist').checked ? 1 : 0;
+  const dq      = document.getElementById('m-dq').checked ? 1 : 0;
+  const catalog = document.getElementById('m-catalog').checked ? 1 : 0;
+  const cicd    = document.getElementById('m-cicd').checked ? 1 : 0;
+  const dr      = document.getElementById('m-dr').checked ? 1 : 0;
+  const consoleM= document.getElementById('m-console').checked ? 1 : 0;
+  const train   = document.getElementById('m-train').checked ? 1 : 0;
+
+  // Масштаб авто: среднее уровней N и M, округление вверх
+  const scaleLvl = Math.ceil((state.nLvl + state.mLvl) / 2);
+  const scale = SCALE_BY_LVL[scaleLvl];
+  const preset = SCALE_PRESET[scale];
+
+  const ovIst = parseInt(document.getElementById('adv-ist').value);
+  const ovSpr = parseInt(document.getElementById('adv-spr').value);
+  const ovFct = parseInt(document.getElementById('adv-fct').value);
+  const IST = ovIst > 0 ? ovIst : preset.ist;
+  const SPR = ovSpr > 0 ? ovSpr : preset.spr;
+  const FCT = ovFct > 0 ? ovFct : preset.fct;
+  const T = SPR + FCT;
+
+  // Блок 1. Инфраструктура (× окружения)
+  const infraEnvMin = 8*has_PG + 24*has_GP + 8*has_CH + 8 + 32*load_CDC + 8*load_NiFi + 16 + 8 + 24 + 16*auth;
+  const infraEnvMax = 16*has_PG + 40*has_GP + 16*has_CH + 16 + 56*load_CDC + 16*load_NiFi + 24 + 16 + 40 + 24*auth;
+  const b1min = infraEnvMin*env, b1max = infraEnvMax*env;
+
+  // Блок 2. Проектирование
+  // Для no_vitrine — урезанное: архитектура + физмодель DMT + STT, без нижних слоёв
+  let b2min, b2max;
+  if (state.dwh === 'no_vitrine') {
+    b2min = 16 + T*(0.25*layer_DMT) + T*0.15 + 24*dq + 24*catalog;       // прикл. архитектура + DMT-модель + STT(витрины)
+    b2max = 24 + T*(0.35*layer_DMT) + T*0.20 + 40*dq + 40*catalog;
+  } else {
+    b2min = 24+16 + T*(0.15+0.15+0.25*layer_DDS+0.25*layer_DMT) + T*0.25 + 24*dq + 24*catalog;
+    b2max = 48+40 + T*(0.20+0.20+0.35*layer_DDS+0.35*layer_DMT) + T*0.35 + 40*dq + 40*catalog;
+  }
+
+  // Блок 3. Разработка
+  // none: интеграция + STG + ODS + DDS + DMT + оркестрация
+  // no_vitrine: только DMT + оркестрация (DWH/ядро уже построено)
+  let b3min, b3max;
+  if (state.dwh === 'no_vitrine') {
+    b3min = layer_DMT*(SPR*2 + FCT*6) + 24;
+    b3max = layer_DMT*(SPR*3 + FCT*8) + 40;
+  } else {
+    b3min = IST*16 + (SPR*2+FCT*6) + (SPR*1+FCT*2) + layer_DDS*(SPR*2+FCT*4+40) + layer_DMT*(SPR*2+FCT*6) + 24;
+    b3max = IST*24 + (SPR*3+FCT*8) + (SPR*1.5+FCT*3) + layer_DDS*(SPR*3+FCT*6+60) + layer_DMT*(SPR*3+FCT*8) + 40;
+  }
+
+  // Блок 4. CDC (0)
+  const b4min = 0, b4max = 0;
+  // Блок 5. История
+  const b5min = hist*(SPR*1+FCT*2), b5max = hist*(SPR*1.5+FCT*3);
+
+  const modules = [
+    { name:'Data Quality', min:120*dq, max:180*dq, on:dq },
+    { name:'Каталог данных и метаданные', min:40*catalog, max:80*catalog, on:catalog },
+    { name:'Консоль администрирования', min:120*consoleM, max:200*consoleM, on:consoleM },
+    { name:'CI/CD', min:120*cicd, max:200*cicd, on:cicd },
+    { name:'DR (катастрофоустойчивость)', min:80*dr, max:160*dr, on:dr },
+    { name:'Аутентификация + ролевая модель', min:24*auth, max:48*auth, on:auth },
+    { name:'Обучение и документация (тех.)', min:60*train, max:100*train, on:train },
+  ];
+  const deployMin = 16, deployMax = 24;
+
+  const layersLabel = (state.dwh === 'no_vitrine') ? 'DMT (витрины)' : 'STG + ODS + DDS + DMT';
+  const rows = [
+    { name:'Инфраструктура DWH (× окружения)', min:b1min, max:b1max },
+    { name:'Проектирование (архитектура, модели)', min:b2min, max:b2max },
+    { name:(state.dwh==='no_vitrine'?'Разработка витрин (DMT)':'Разработка DWH (слои)'), min:b3min, max:b3max },
+    ...(b5min+b5max>0 ? [{ name:'Историческая загрузка', min:b5min, max:b5max }] : []),
+    ...modules.filter(m=>m.on).map(m=>({ name:m.name, min:m.min, max:m.max })),
+    { name:'Деплой (QA / Prod)', min:deployMin, max:deployMax },
+  ];
+
+  const dbName = has_GP ? (has_CH?'Greenplum + ClickHouse':'Greenplum') : (has_CH?'PostgreSQL + ClickHouse':'PostgreSQL');
+  let dbRec = vol < 5
+    ? `При объёме ${vol.toLocaleString('ru-RU')} ТБ рекомендуется PostgreSQL.`
+    : `При объёме ${vol.toLocaleString('ru-RU')} ТБ рекомендуется Greenplum (MPP, сегментирование).`;
+  dbRec += ' ClickHouse рекомендуется всегда — ускоряет агрегации для DataLens (Direct Query без in-memory).';
+
+  // Сайзинг
+  const sizing = [];
+  if (has_PG) sizing.push({ svc:'Managed PostgreSQL', spec: SIZING.pg[scale] });
+  if (has_GP) sizing.push({ svc:'Managed Greenplum', spec: SIZING.gp[scale] });
+  if (has_CH) sizing.push({ svc:'Managed ClickHouse', spec: SIZING.ch[scale] });
+  sizing.push({ svc:'Managed Airflow', spec: SIZING.airflow[scale] });
+  sizing.push({ svc:'Object Storage (S3)', spec: SIZING.s3[scale] });
+
+  return { rows, dbName, dbRec, sizing, scale, layersLabel, IST, SPR, FCT };
+}
+
+// ══════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════
+function fmt(n)  { return Math.round(n).toLocaleString('ru-RU'); }
+function fmtH(n) { return Math.round(n) + '\u00a0ч'; }
+function fmtR(n) { return fmt(n) + '\u00a0₽'; }
+
+function updateAutoInfo(dwhData) {
+  const sizingSection = document.getElementById('infra-onprem-notice');
+  if (dwhData) {
+    document.getElementById('auto-db').textContent = dwhData.dbName;
+    document.getElementById('auto-scale').textContent = dwhData.scale;
+    document.getElementById('auto-layers').textContent = dwhData.layersLabel;
+    document.getElementById('d-dbrec').textContent = dwhData.dbRec;
+    let sz = '';
+    for (const s of dwhData.sizing) {
+      sz += `<div class="sizing-row"><span class="sizing-svc">${s.svc}</span><span class="sizing-spec">${s.spec}</span></div>`;
+    }
+    document.getElementById('sizing-rows').innerHTML = sz;
+  }
+}
+
+function renderResult(d) {
+  // ── Блок 1: Разработка ──
+  let dev = '';
+  for (const r of d.allRows) {
+    dev += `<div class="result-row"><span class="rr-name">${r.name}</span><span class="rr-val">${fmtH(r.min)}\u2013${fmtH(r.max)}</span></div>`;
+  }
+  document.getElementById('rp-dev-rows').innerHTML = dev;
+  document.getElementById('rp-dev-total').textContent = `${fmt(d.devCostMin)}\u2013${fmt(d.devCostMax)}\u00a0₽`;
+  document.getElementById('rp-dev-hours').textContent = `${fmt(d.devMin)}\u2013${fmt(d.devMax)}\u00a0ч · включает руководство проектом`;
+  const weeksMin = Math.ceil(d.devMin/50), weeksMax = Math.ceil(d.devMax/22);
+  document.getElementById('rp-dev-weeks').textContent = `Ориентировочный срок · ${weeksMin}\u2013${weeksMax}\u00a0нед.`;
+
+  // ── Блок 2: Лицензии ──
+  const lw = document.getElementById('lic-warning');
+  if (d.licWarn) { lw.style.display = ''; lw.innerHTML = '<span class="infra-notice-icon">⚠</span>' + d.licWarn; }
+  else lw.style.display = 'none';
+
+  const hasLic = d.editors > 0 || d.viewers > 0;
+  document.getElementById('rp-lic-block').style.display = hasLic ? '' : 'none';
+  document.getElementById('rp-lic-detail').style.display = hasLic ? '' : 'none';
+  if (hasLic) {
+    let lr = '';
+    if (d.editors > 0) lr += `<div class="result-row"><span class="rr-name">Редакторы (${d.editors}×${fmt(LIC.editor[d.licKey])}\u00a0₽)</span><span class="rr-val">${fmtR(d.licEditors)}</span></div>`;
+    if (d.viewers > 0) lr += `<div class="result-row"><span class="rr-name">Бизнес-польз. (${d.viewers}×${fmt(LIC.viewer[d.licKey])}\u00a0₽)</span><span class="rr-val">${fmtR(d.licViewers)}</span></div>`;
+    document.getElementById('rp-lic-rows').innerHTML = lr;
+    document.getElementById('rp-lic-total').textContent = fmtR(d.licTotal) + '/год';
+  }
+
+  // ── Блок 3: Инфраструктура ──
+  document.getElementById('rp-infra-block').style.display = d.infraOn ? '' : 'none';
+  document.getElementById('rp-infra-detail').style.display = d.infraOn ? '' : 'none';
+  if (d.infraOn) {
+    let ir = '';
+    for (const it of (d.infraItems || [])) {
+      const val = it.cost === null
+        ? '<span style="color:var(--warn)">уточняется</span>'
+        : fmtR(Math.round(it.cost));
+      ir += `<div class="result-row"><span class="rr-name">${it.name}</span><span class="rr-val">${val}</span></div>`;
+    }
+    document.getElementById('rp-infra-rows').innerHTML = ir;
+    if (d.infraYear > 0) {
+      const lo = Math.round(d.infraYear * (1 - INFRA_RANGE));
+      const hi = Math.round(d.infraYear * (1 + INFRA_RANGE));
+      document.getElementById('rp-infra-total').textContent = `${fmt(lo)}\u2013${fmt(hi)}\u00a0₽/год`;
+    } else {
+      document.getElementById('rp-infra-total').textContent = '—';
+    }
+  }
+
+  // ── Поддержка (со 2-го года) ──
+  const supportYearMin = d.devCostMin * SUPPORT_RATE;
+  const supportYearMax = d.devCostMax * SUPPORT_RATE;
+  document.getElementById('rp-support-block').style.display = selectedYears > 1 ? '' : 'none';
+  document.getElementById('rp-support-val').textContent = `${fmt(supportYearMin)}\u2013${fmt(supportYearMax)}\u00a0₽`;
+
+  // ── Переключатель лет ──
+  renderYears();
+
+  // ── Многолетний расчёт TCO ──
+  const licYear = hasLic ? d.licTotal : 0;
+  const infraBase = d.infraOn ? d.infraYear : 0;
+  const infraStor = d.infraOn ? d.infraStorage : 0;   // часть инфры — хранилище (растёт с данными)
+  const infraFixed = infraBase - infraStor;           // вычислительные ресурсы (не растут)
+
+  // Инфраструктура года y с учётом роста данных (только хранилище)
+  function infraAtYear(y) {
+    const grown = infraStor * Math.pow(1 + DATA_GROWTH, y - 1);
+    return infraFixed + grown;
+  }
+
+  let tcoMin = 0, tcoMax = 0;
+  const yearly = []; // разбивка по годам
+  for (let y = 1; y <= selectedYears; y++) {
+    const infl = y >= 3 ? Math.pow(1 + INFLATION, y - 2) : 1;
+    const infraY = infraAtYear(y) * infl;
+    const infraYmin = infraY * (1 - INFRA_RANGE);
+    const infraYmax = infraY * (1 + INFRA_RANGE);
+    const licY = licYear * infl;
+    const supY = (y === 1) ? 0 : 1; // флаг наличия поддержки
+    const devY = (y === 1) ? 1 : 0;
+
+    const yMin = devY*d.devCostMin + supY*supportYearMin*infl + licY + infraYmin;
+    const yMax = devY*d.devCostMax + supY*supportYearMax*infl + licY + infraYmax;
+    tcoMin += yMin; tcoMax += yMax;
+    yearly.push({
+      year: y,
+      dev: devY ? [d.devCostMin, d.devCostMax] : null,
+      support: supY ? [supportYearMin*infl, supportYearMax*infl] : null,
+      lic: licY,
+      infra: d.infraOn ? [infraYmin, infraYmax] : null,
+      total: [yMin, yMax]
+    });
+  }
+
+  document.getElementById('rp-grand-total').innerHTML = `${fmt(tcoMin)}\u2013${fmt(tcoMax)} <span class="rub">₽</span>`;
+  const parts = ['разработка'];
+  if (hasLic) parts.push('лицензии');
+  if (d.infraOn) parts.push('инфраструктура');
+  if (selectedYears > 1) parts.push('поддержка');
+  document.getElementById('rp-grand-sub').textContent =
+    `За ${selectedYears} ${yearWord(selectedYears)}, без НДС · ${parts.join(' + ')}`;
+  document.getElementById('rp-years-hint').textContent =
+    selectedYears === 1 ? 'Стоимость первого года' : `Совокупная стоимость владения за ${selectedYears} ${yearWord(selectedYears)}`;
+
+  // Разбивка по годам в детализации
+  renderYearly(yearly, d.infraOn, hasLic);
+
+  // сохраняем для модалки
+  window._lastTco = { tcoMin, tcoMax, years: selectedYears };
+}
+
+function renderYearly(yearly, infraOn, hasLic) {
+  const box = document.getElementById('rp-yearly');
+  if (!box) return;
+  if (yearly.length <= 1) { box.innerHTML = ''; return; }
+  let h = '<div class="grp-title" style="margin-top:14px">Разбивка по годам</div>';
+  for (const y of yearly) {
+    h += `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">`;
+    h += `<div class="result-row" style="margin-bottom:4px"><span class="rr-name" style="color:var(--text);font-weight:600">Год ${y.year}</span><span class="rr-val">${fmt(y.total[0])}\u2013${fmt(y.total[1])}\u00a0₽</span></div>`;
+    if (y.dev) h += `<div class="result-row"><span class="rr-name">— разработка</span><span class="rr-val">${fmt(y.dev[0])}\u2013${fmt(y.dev[1])}</span></div>`;
+    if (y.support) h += `<div class="result-row"><span class="rr-name">— поддержка</span><span class="rr-val">${fmt(y.support[0])}\u2013${fmt(y.support[1])}</span></div>`;
+    if (hasLic) h += `<div class="result-row"><span class="rr-name">— лицензии</span><span class="rr-val">${fmt(y.lic)}</span></div>`;
+    if (y.infra) h += `<div class="result-row"><span class="rr-name">— инфраструктура</span><span class="rr-val">${fmt(y.infra[0])}\u2013${fmt(y.infra[1])}</span></div>`;
+    h += `</div>`;
+  }
+  box.innerHTML = h;
+}
+
+function yearWord(y) {
+  if (y === 1) return 'год';
+  if (y >= 2 && y <= 4) return 'года';
+  return 'лет';
+}
+
+function renderYears() {
+  const sw = document.getElementById('years-switch');
+  if (sw.children.length) return; // строим один раз
+  for (let y = 1; y <= 5; y++) {
+    const b = document.createElement('div');
+    b.className = 'year-btn' + (y === selectedYears ? ' active' : '');
+    b.textContent = y + ' ' + (y === 1 ? 'год' : (y <= 4 ? 'года' : 'лет'));
+    b.onclick = () => { selectedYears = y; document.querySelectorAll('.year-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); calculate(); };
+    sw.appendChild(b);
+  }
+}
+
+// ══════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════
+function exportEstimate() {
+  const grand = document.getElementById('rp-grand-total').textContent.trim();
+  const sub = document.getElementById('rp-grand-sub').textContent.trim();
+  const dev = document.getElementById('rp-dev-total').textContent.trim();
+  const devH = document.getElementById('rp-dev-hours').textContent.trim();
+  const devW = document.getElementById('rp-dev-weeks').textContent.trim();
+  const lic = document.getElementById('rp-lic-block').style.display !== 'none' ? document.getElementById('rp-lic-total').textContent.trim() : '—';
+  const infra = document.getElementById('rp-infra-block').style.display !== 'none' ? document.getElementById('rp-infra-total').textContent.trim() : '—';
+
+  const lines = [
+    'КАЛЬКУЛЯТОР СТОИМОСТИ ВНЕДРЕНИЯ DataLens + DWH',
+    'Navicon · индикативная оценка (без НДС)',
+    '',
+    'ИТОГО: ' + grand,
+    sub,
+    '',
+    '1. Разработка (разовая): ' + dev,
+    '   ' + devH,
+    '   ' + devW,
+    '2. Лицензии DataLens: ' + lic,
+    '3. Инфраструктура (Yandex Cloud): ' + infra,
+    '',
+    'Параметры проекта:',
+    '  Наличие DWH: ' + ({ready:'DWH + витрины готовы', no_vitrine:'есть DWH, нет витрин', none:'DWH нет (с нуля)'})[state.dwh],
+    '  Размещение BI: ' + (state.infra === 'cloud' ? 'Yandex Cloud' : 'On-premise'),
+    '  Отчётов (N): ' + state.n + ', Показателей (M): ' + state.m,
+    '  Сложность: ' + state.complexity + ', RLS: ' + state.rls + ', Инструкции: ' + state.docs,
+    state.dwhEnabled || state.dwh !== 'ready' ? '  Объём хранилища: ' + state.volume + ' ТБ' : '',
+    '',
+    'Дата формирования: ' + new Date().toLocaleDateString('ru-RU'),
+    'Оценка индикативная, не является офертой.'
+  ].filter(Boolean);
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Оценка_DataLens_DWH.txt';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function openModal() {
+  const price = document.getElementById('rp-grand-total').textContent;
+  const sub = document.getElementById('rp-grand-sub').textContent;
+  document.getElementById('modal-summary').innerHTML = `<div class="ms-price">${price}</div><div class="ms-sub">${sub}</div>`;
+  document.getElementById('modal-form-view').style.display = '';
+  document.getElementById('modal-success-view').style.display = 'none';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeModalOverlay(e) { if (e.target === document.getElementById('modal')) closeModal(); }
+function submitForm() {
+  const name = document.getElementById('cf-name').value.trim();
+  const email = document.getElementById('cf-email').value.trim();
+  if (!name || !email) {
+    document.getElementById('cf-name').style.borderColor = name ? '' : 'var(--danger)';
+    document.getElementById('cf-email').style.borderColor = email ? '' : 'var(--danger)';
+    return;
+  }
+  document.getElementById('modal-form-view').style.display = 'none';
+  document.getElementById('modal-success-view').style.display = '';
+}
+
+// Initial
+updateDwhMode();
+updateInfraNotice();
+calculate();
+</script>
+</body>
+</html>
